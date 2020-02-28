@@ -16,7 +16,7 @@ var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbo
 type serviceExecutor struct {
 }
 
-func (shell *serviceExecutor) Execute(step module.Step) error {
+func (shell *serviceExecutor) Execute(step module.Step, session module.Session) error {
 	Logger.Warn(fmt.Sprintf("service.Executor.Execute -> Executing command : %s", step.StepType))
 	return nil
 }

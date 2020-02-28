@@ -17,7 +17,7 @@ var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbo
 type copyCmdExecutor struct {
 }
 
-func (shell *copyCmdExecutor) Execute(step module.Step) error {
+func (shell *copyCmdExecutor) Execute(step module.Step, session module.Session) error {
 	Logger.Warn(fmt.Sprintf("copy.Executor.Execute -> Executing command : %s", step.StepType))
 	return nil
 }

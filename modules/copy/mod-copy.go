@@ -6,23 +6,16 @@ import (
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
+	"github.com/hellgate75/go-deploy/types/defaults"
 	"github.com/hellgate75/go-deploy/types/module"
+	"github.com/hellgate75/go-deploy/types/threads"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbosity()))
-
-type copyCmdExecutor struct {
-}
-
-func (shell *copyCmdExecutor) Execute(step module.Step, session module.Session) error {
-	Logger.Warn(fmt.Sprintf("copy.Executor.Execute -> Executing command : %s", step.StepType))
-	return nil
-}
-
-var Executor meta.Executor = &copyCmdExecutor{}
 
 var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 
@@ -37,11 +30,54 @@ type copyCommand struct {
 	WithList       []string
 }
 
+func (copyCmd *copyCommand) Run() error {
+	return nil
+}
+func (copyCmd *copyCommand) Stop() error {
+	return nil
+}
+func (copyCmd *copyCommand) Kill() error {
+	return nil
+}
+func (copyCmd *copyCommand) Pause() error {
+	return nil
+}
+func (copyCmd *copyCommand) Resume() error {
+	return nil
+}
+func (copyCmd *copyCommand) IsRunning() bool {
+	return false
+}
+func (copyCmd *copyCommand) IsPaused() bool {
+	return false
+}
+func (copyCmd *copyCommand) IsComplete() bool {
+	return false
+}
+func (copyCmd *copyCommand) UUID() string {
+	return ""
+}
+func (copyCmd *copyCommand) UpTime() time.Duration {
+	return time.Now().Sub(time.Now())
+}
+func (copyCmd *copyCommand) Clone() threads.StepRunnable {
+	return nil
+}
+func (copyCmd *copyCommand) SetHost(host defaults.HostValue) {
+
+}
+func (copyCmd *copyCommand) SetSession(session module.Session) {
+
+}
+func (copyCmd *copyCommand) SetConfig(config defaults.ConfigPattern) {
+
+}
+
 func (copyCmd copyCommand) String() string {
 	return fmt.Sprintf("ServiceCommand {SourceDir: %v, DestDir: %v, CreateDest: %v, WithVars: [%v], WithList: [%v]}", copyCmd.SourceDir, copyCmd.DestinationDir, strconv.FormatBool(copyCmd.CreateDest), copyCmd.WithVars, copyCmd.WithList)
 }
 
-func (copyCmd *copyCommand) Convert(cmdValues interface{}) (interface{}, error) {
+func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable, error) {
 	var superError error = nil
 	defer func() {
 		if r := recover(); r != nil {
@@ -122,7 +158,7 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (interface{}, error) 
 	if superError != nil {
 		return nil, superError
 	}
-	return copyCommand{
+	return &copyCommand{
 		SourceDir:      sourceDir,
 		DestinationDir: destDir,
 		CreateDest:     createDest,
@@ -135,15 +171,9 @@ var Converter meta.Converter = &copyCommand{}
 
 type stub struct{}
 
-func (stub *stub) Discover(module string, feature string) (interface{}, error) {
+func (stub *stub) Discover(module string) (meta.Converter, error) {
 	if module == "copy" {
-		if feature == "Converter" {
-			return &copyCommand{}, nil
-		} else if feature == "Executor" {
-			return &copyCmdExecutor{}, nil
-		} else {
-			return nil, errors.New("Component Not found!!")
-		}
+		return &copyCommand{}, nil
 	}
 	return nil, errors.New("Wrong module")
 }

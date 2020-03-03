@@ -6,29 +6,18 @@ import (
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
+	"github.com/hellgate75/go-deploy/types/defaults"
 	"github.com/hellgate75/go-deploy/types/module"
+	"github.com/hellgate75/go-deploy/types/threads"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbosity()))
 
-type shellExecutor struct {
-}
-
-func (shell *shellExecutor) Execute(step module.Step, session module.Session) error {
-	Logger.Warn(fmt.Sprintf("shell.Executor.Execute -> Executing command : %s", step.StepType))
-	return nil
-}
-
-var Executor meta.Executor = &shellExecutor{}
-
 var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
-
-func (shell shellCommand) String() string {
-	return fmt.Sprintf("ShellCommand {Exec: %v, RunAs: %v, AsRoot: %v, WithVars: [%v], WithList: [%v]}", shell.Exec, shell.RunAs, strconv.FormatBool(shell.AsRoot), shell.WithVars, shell.WithList)
-}
 
 /*
 * Shell command structure
@@ -42,7 +31,54 @@ type shellCommand struct {
 	SaveState string
 }
 
-func (shell *shellCommand) Convert(cmdValues interface{}) (interface{}, error) {
+func (shell *shellCommand) Run() error {
+	return nil
+}
+func (shell *shellCommand) Stop() error {
+	return nil
+}
+func (shell *shellCommand) Kill() error {
+	return nil
+}
+func (shell *shellCommand) Pause() error {
+	return nil
+}
+func (shell *shellCommand) Resume() error {
+	return nil
+}
+func (shell *shellCommand) IsRunning() bool {
+	return false
+}
+func (shell *shellCommand) IsPaused() bool {
+	return false
+}
+func (shell *shellCommand) IsComplete() bool {
+	return false
+}
+func (shell *shellCommand) UUID() string {
+	return ""
+}
+func (shell *shellCommand) UpTime() time.Duration {
+	return time.Now().Sub(time.Now())
+}
+func (shell *shellCommand) Clone() threads.StepRunnable {
+	return nil
+}
+func (shell *shellCommand) SetHost(host defaults.HostValue) {
+
+}
+func (shell *shellCommand) SetSession(session module.Session) {
+
+}
+func (shell *shellCommand) SetConfig(config defaults.ConfigPattern) {
+
+}
+
+func (shell shellCommand) String() string {
+	return fmt.Sprintf("ShellCommand {Exec: %v, RunAs: %v, AsRoot: %v, WithVars: [%v], WithList: [%v]}", shell.Exec, shell.RunAs, strconv.FormatBool(shell.AsRoot), shell.WithVars, shell.WithList)
+}
+
+func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable, error) {
 	var superError error = nil
 	defer func() {
 		if r := recover(); r != nil {
@@ -139,7 +175,7 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (interface{}, error) {
 	if superError != nil {
 		return nil, superError
 	}
-	return shellCommand{
+	return &shellCommand{
 		Exec:      exec,
 		RunAs:     runAs,
 		AsRoot:    asRoot,
@@ -152,15 +188,9 @@ var Converter meta.Converter = &shellCommand{}
 
 type stub struct{}
 
-func (stub *stub) Discover(module string, feature string) (interface{}, error) {
+func (stub *stub) Discover(module string) (meta.Converter, error) {
 	if module == "shell" {
-		if feature == "Converter" {
-			return &shellCommand{}, nil
-		} else if feature == "Executor" {
-			return &shellExecutor{}, nil
-		} else {
-			return nil, errors.New("Component Not found!!")
-		}
+		return &shellCommand{}, nil
 	}
 	return nil, errors.New("Wrong module")
 }

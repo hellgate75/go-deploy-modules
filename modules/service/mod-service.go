@@ -6,22 +6,15 @@ import (
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
+	"github.com/hellgate75/go-deploy/types/defaults"
 	"github.com/hellgate75/go-deploy/types/module"
+	"github.com/hellgate75/go-deploy/types/threads"
 	"reflect"
 	"strings"
+	"time"
 )
 
 var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbosity()))
-
-type serviceExecutor struct {
-}
-
-func (shell *serviceExecutor) Execute(step module.Step, session module.Session) error {
-	Logger.Warn(fmt.Sprintf("service.Executor.Execute -> Executing command : %s", step.StepType))
-	return nil
-}
-
-var Executor meta.Executor = &serviceExecutor{}
 
 var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 
@@ -35,11 +28,54 @@ type serviceCommand struct {
 	WithList []string
 }
 
+func (service *serviceCommand) Run() error {
+	return nil
+}
+func (service *serviceCommand) Stop() error {
+	return nil
+}
+func (service *serviceCommand) Kill() error {
+	return nil
+}
+func (service *serviceCommand) Pause() error {
+	return nil
+}
+func (service *serviceCommand) Resume() error {
+	return nil
+}
+func (service *serviceCommand) IsRunning() bool {
+	return false
+}
+func (service *serviceCommand) IsPaused() bool {
+	return false
+}
+func (service *serviceCommand) IsComplete() bool {
+	return false
+}
+func (service *serviceCommand) UUID() string {
+	return ""
+}
+func (service *serviceCommand) UpTime() time.Duration {
+	return time.Now().Sub(time.Now())
+}
+func (service *serviceCommand) Clone() threads.StepRunnable {
+	return nil
+}
+func (service *serviceCommand) SetHost(host defaults.HostValue) {
+
+}
+func (service *serviceCommand) SetSession(session module.Session) {
+
+}
+func (service *serviceCommand) SetConfig(config defaults.ConfigPattern) {
+
+}
+
 func (service serviceCommand) String() string {
 	return fmt.Sprintf("serviceCommand {Name: %v, State: %v, WithVars: [%v], WithList: [%v]}", service.Name, service.State, service.WithVars, service.WithList)
 }
 
-func (service *serviceCommand) Convert(cmdValues interface{}) (interface{}, error) {
+func (service *serviceCommand) Convert(cmdValues interface{}) (threads.StepRunnable, error) {
 	var superError error = nil
 	defer func() {
 		if r := recover(); r != nil {
@@ -104,7 +140,7 @@ func (service *serviceCommand) Convert(cmdValues interface{}) (interface{}, erro
 	if superError != nil {
 		return nil, superError
 	}
-	return serviceCommand{
+	return &serviceCommand{
 		Name:     name,
 		State:    state,
 		WithVars: withVars,
@@ -116,15 +152,9 @@ var Converter meta.Converter = &serviceCommand{}
 
 type stub struct{}
 
-func (stub *stub) Discover(module string, feature string) (interface{}, error) {
+func (stub *stub) Discover(module string) (meta.Converter, error) {
 	if module == "service" {
-		if feature == "Converter" {
-			return &serviceCommand{}, nil
-		} else if feature == "Executor" {
-			return &serviceExecutor{}, nil
-		} else {
-			return nil, errors.New("Component Not found!!")
-		}
+		return &serviceCommand{}, nil
 	}
 	return nil, errors.New("Wrong module")
 }

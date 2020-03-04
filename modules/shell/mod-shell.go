@@ -49,7 +49,17 @@ func (shell *shellCommand) SetClient(client generic.NetworkClient) {
 
 func (shell *shellCommand) Run() error {
 	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(fmt.Sprintf("%v", err))
+		}
+		shell._running = false
+		shell.finished = true
+		shell.paused = false
+		shell.started = false
+	}()
 	Logger.Warnf("Shell command not implemented, shell data: %s", shell.String())
+
 	return err
 }
 func (shell *shellCommand) Stop() error {

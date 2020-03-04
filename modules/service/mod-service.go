@@ -46,6 +46,15 @@ func (service *serviceCommand) SetClient(client generic.NetworkClient) {
 
 func (service *serviceCommand) Run() error {
 	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(fmt.Sprintf("%v", err))
+		}
+		service._running = false
+		service.finished = true
+		service.paused = false
+		service.started = false
+	}()
 	Logger.Warnf("Service command not implemented, service data: %s", service.String())
 	return err
 }

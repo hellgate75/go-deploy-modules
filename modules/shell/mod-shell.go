@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
+	"bytes"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
 	"github.com/hellgate75/go-deploy/net/generic"
@@ -58,8 +59,45 @@ func (shell *shellCommand) Run() error {
 		shell.paused = false
 		shell.started = false
 	}()
-	Logger.Warnf("Shell command not implemented, shell data: %s", shell.String())
+	//	Logger.Warnf("Shell command not implemented, shell data: %s", shell.String())
+	Logger.Infof("Executing command: %s", shell.Exec)
+	Logger.Infof("Host labelled:  %s", shell.host.Name)
+	buffer := bytes.NewBuffer([]byte{})
+	var command string = shell.Exec
+	if shell.WithVars != nil && len(shell.WithVars) > 0 {
+		for _, varKey := range shell.WithVars {
+			varValue, varValueErr := shell.session.GetVar(varKey)
+			if varValueErr == nil {
+				command = strings.ReplaceAll(command, "{{ "+varKey+" }}", varValue)
+			}
+		}
+	}
+	if shell.WithList != nil && len(shell.WithList) > 0 && strings.Index(command, "{{ item }}") >= 0 {
+		var commandCopy string = command
+		for _, listItem := range shell.WithList {
+			strings.ReplaceAll(commandCopy, "{{ item }}", listItem)
 
+			script := shell.client.Script(commandCopy)
+			//	script.SetStdio(buffer, buffer)
+			bytesArr, errCmd := script.ExecuteWithFullOutput()
+			if errCmd != nil {
+				return errors.New("Error Details: " + errCmd.Error() + ", StdErr: " + string(bytesArr) + ", Output: " + buffer.String())
+			}
+			buffer.Write(bytesArr)
+		}
+	} else {
+		script := shell.client.Script(command)
+		//	script.SetStdio(buffer, buffer)
+		bytesArr, errCmd := script.ExecuteWithFullOutput()
+		if errCmd != nil {
+			return errCmd
+		}
+		buffer.Write(bytesArr)
+	}
+
+	if shell.SaveState != "" {
+		shell.session.SetVar(shell.SaveState, buffer.String())
+	}
 	return err
 }
 func (shell *shellCommand) Stop() error {

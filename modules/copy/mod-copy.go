@@ -6,6 +6,7 @@ import (
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
+	"github.com/hellgate75/go-deploy/net/generic"
 	"github.com/hellgate75/go-deploy/types/defaults"
 	"github.com/hellgate75/go-deploy/types/module"
 	"github.com/hellgate75/go-deploy/types/threads"
@@ -28,48 +29,97 @@ type copyCommand struct {
 	CreateDest     bool
 	WithVars       []string
 	WithList       []string
+	host           defaults.HostValue
+	session        module.Session
+	config         defaults.ConfigPattern
+	client         generic.NetworkClient
+	start          time.Time
+	lastDuration   time.Duration
+	uuid           string
+	started        bool
+	finished       bool
+	paused         bool
+	_running       bool
+}
+
+func (copyCmd *copyCommand) SetClient(client generic.NetworkClient) {
+	copyCmd.client = client
 }
 
 func (copyCmd *copyCommand) Run() error {
-	return nil
+	var err error
+	Logger.Warnf("Copy Command command not implemented, copy command data: %s", copyCmd.String())
+	return err
 }
 func (copyCmd *copyCommand) Stop() error {
+	copyCmd._running = false
 	return nil
 }
 func (copyCmd *copyCommand) Kill() error {
 	return nil
 }
 func (copyCmd *copyCommand) Pause() error {
-	return nil
+	if !copyCmd.paused && copyCmd.started {
+		copyCmd.paused = true
+		copyCmd.started = false
+		copyCmd.lastDuration += time.Now().Sub(copyCmd.start)
+		return nil
+	}
+	return errors.New("Process not running or already paused")
 }
 func (copyCmd *copyCommand) Resume() error {
-	return nil
+	if copyCmd.paused && !copyCmd.started {
+		copyCmd.paused = false
+		copyCmd.started = true
+		copyCmd.start = time.Now()
+	}
+	return errors.New("Process running or not paused")
 }
 func (copyCmd *copyCommand) IsRunning() bool {
-	return false
+	return copyCmd.started
 }
 func (copyCmd *copyCommand) IsPaused() bool {
-	return false
+	return copyCmd.paused
 }
 func (copyCmd *copyCommand) IsComplete() bool {
-	return false
+	return !copyCmd.started && !copyCmd.paused && copyCmd.finished
 }
 func (copyCmd *copyCommand) UUID() string {
-	return ""
+	return copyCmd.uuid
+}
+func (copyCmd *copyCommand) Equals(r threads.StepRunnable) bool {
+	if r != nil {
+		return copyCmd.uuid == r.UUID()
+	}
+	return false
 }
 func (copyCmd *copyCommand) UpTime() time.Duration {
-	return time.Now().Sub(time.Now())
+	return time.Now().Sub(copyCmd.start) + copyCmd.lastDuration
 }
 func (copyCmd *copyCommand) Clone() threads.StepRunnable {
-	return nil
+	return &copyCommand{
+		SourceDir:      copyCmd.SourceDir,
+		DestinationDir: copyCmd.DestinationDir,
+		CreateDest:     copyCmd.CreateDest,
+		WithVars:       copyCmd.WithVars,
+		WithList:       copyCmd.WithList,
+		host:           copyCmd.host,
+		session:        copyCmd.session,
+		config:         copyCmd.config,
+		start:          time.Now(),
+		lastDuration:   0 * time.Second,
+		uuid:           module.NewSessionId(),
+	}
 }
 func (copyCmd *copyCommand) SetHost(host defaults.HostValue) {
-
+	copyCmd.host = host
 }
 func (copyCmd *copyCommand) SetSession(session module.Session) {
+	copyCmd.session = session
 
 }
 func (copyCmd *copyCommand) SetConfig(config defaults.ConfigPattern) {
+	copyCmd.config = config
 
 }
 
@@ -97,23 +147,24 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
+			Logger.Debug(fmt.Sprintf("copy.%s -> type: %s", strings.ToLower(key), elemValType))
 			if strings.ToLower(key) == "srcdir" {
 				if elemValType == "string" {
 					sourceDir = fmt.Sprintf("%v", value)
 				} else {
-					return nil, errors.New("Unable to parse command: service.srcDir, with aguments of type " + elemValType + ", expected type string")
+					return nil, errors.New("Unable to parse command: copy.srcDir, with aguments of type " + elemValType + ", expected type string")
 				}
 			} else if strings.ToLower(key) == "destdir" {
 				if elemValType == "string" {
 					destDir = fmt.Sprintf("%v", value)
 				} else {
-					return nil, errors.New("Unable to parse command: service.destDir, with aguments of type " + elemValType + ", expected type string")
+					return nil, errors.New("Unable to parse command: copy.destDir, with aguments of type " + elemValType + ", expected type string")
 				}
 			} else if strings.ToLower(key) == "createifmissing" {
 				if elemValType == "string" {
 					bl, err := strconv.ParseBool(fmt.Sprintf("%v", value))
 					if err != nil {
-						return nil, errors.New("Error parsing command: shell.createIfMissing, cause: " + err.Error())
+						return nil, errors.New("Error parsing command: copy.createIfMissing, cause: " + err.Error())
 
 					} else {
 						createDest = bl
@@ -122,7 +173,7 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 				} else if elemValType == "bool" {
 					createDest = value.(bool)
 				} else {
-					return nil, errors.New("Unable to parse command: shell.createIfMissing, with aguments of type " + elemValType + ", expected type bool or string")
+					return nil, errors.New("Unable to parse command: copy.createIfMissing, with aguments of type " + elemValType + ", expected type bool or string")
 				}
 			} else if strings.ToLower(key) == "withvars" {
 				if elemValType == "[]string" {
@@ -134,7 +185,7 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 						withVars = append(withVars, fmt.Sprintf("%v", val))
 					}
 				} else {
-					return nil, errors.New("Unable to parse command: service.withVars, with aguments of type " + elemValType + ", expected type []string")
+					return nil, errors.New("Unable to parse command: copy.withVars, with aguments of type " + elemValType + ", expected type []string")
 				}
 			} else if strings.ToLower(key) == "withlist" {
 				if elemValType == "[]string" {
@@ -146,14 +197,14 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 						withList = append(withList, fmt.Sprintf("%v", val))
 					}
 				} else {
-					return nil, errors.New("Unable to parse command: service.withList, with aguments of type " + elemValType + ", expected type []string")
+					return nil, errors.New("Unable to parse command: copy.withList, with aguments of type " + elemValType + ", expected type []string")
 				}
 			} else {
-				return nil, errors.New("Unknown command: service." + key)
+				return nil, errors.New("Unknown command: copy." + key)
 			}
 		}
 	} else {
-		return nil, errors.New("Unable to parse command: service, with aguments of type " + valType + ", expected type map[string]interfce{}")
+		return nil, errors.New("Unable to parse command: copy, with aguments of type " + valType + ", expected type map[string]interfce{}")
 	}
 	if superError != nil {
 		return nil, superError
@@ -164,6 +215,9 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 		CreateDest:     createDest,
 		WithVars:       withVars,
 		WithList:       withList,
+		start:          time.Now(),
+		lastDuration:   0 * time.Second,
+		uuid:           module.NewSessionId(),
 	}, nil
 }
 

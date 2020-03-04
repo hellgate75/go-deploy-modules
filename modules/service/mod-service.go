@@ -6,6 +6,7 @@ import (
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
+	"github.com/hellgate75/go-deploy/net/generic"
 	"github.com/hellgate75/go-deploy/types/defaults"
 	"github.com/hellgate75/go-deploy/types/module"
 	"github.com/hellgate75/go-deploy/types/threads"
@@ -22,53 +23,99 @@ var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 * Service command structure
  */
 type serviceCommand struct {
-	Name     string
-	State    string
-	WithVars []string
-	WithList []string
+	Name         string
+	State        string
+	WithVars     []string
+	WithList     []string
+	host         defaults.HostValue
+	session      module.Session
+	config       defaults.ConfigPattern
+	client       generic.NetworkClient
+	start        time.Time
+	lastDuration time.Duration
+	uuid         string
+	started      bool
+	finished     bool
+	paused       bool
+	_running     bool
+}
+
+func (service *serviceCommand) SetClient(client generic.NetworkClient) {
+	service.client = client
 }
 
 func (service *serviceCommand) Run() error {
-	return nil
+	var err error
+	Logger.Warnf("Service command not implemented, service data: %s", service.String())
+	return err
 }
 func (service *serviceCommand) Stop() error {
+	service._running = false
 	return nil
 }
 func (service *serviceCommand) Kill() error {
 	return nil
 }
 func (service *serviceCommand) Pause() error {
-	return nil
+	if !service.paused && service.started {
+		service.paused = true
+		service.started = false
+		service.lastDuration += time.Now().Sub(service.start)
+		return nil
+	}
+	return errors.New("Process not running or already paused")
 }
 func (service *serviceCommand) Resume() error {
-	return nil
+	if service.paused && !service.started {
+		service.paused = false
+		service.started = true
+		service.start = time.Now()
+	}
+	return errors.New("Process running or not paused")
 }
 func (service *serviceCommand) IsRunning() bool {
-	return false
+	return service.started
 }
 func (service *serviceCommand) IsPaused() bool {
-	return false
+	return service.paused
 }
 func (service *serviceCommand) IsComplete() bool {
-	return false
+	return !service.started && !service.paused && service.finished
 }
 func (service *serviceCommand) UUID() string {
-	return ""
+	return service.uuid
+}
+func (service *serviceCommand) Equals(r threads.StepRunnable) bool {
+	if r != nil {
+		return service.uuid == r.UUID()
+	}
+	return false
 }
 func (service *serviceCommand) UpTime() time.Duration {
-	return time.Now().Sub(time.Now())
+	return time.Now().Sub(service.start) + service.lastDuration
 }
 func (service *serviceCommand) Clone() threads.StepRunnable {
-	return nil
+	return &serviceCommand{
+		Name:         service.Name,
+		State:        service.State,
+		WithVars:     service.WithVars,
+		WithList:     service.WithList,
+		host:         service.host,
+		session:      service.session,
+		config:       service.config,
+		start:        time.Now(),
+		lastDuration: 0 * time.Second,
+		uuid:         module.NewSessionId(),
+	}
 }
 func (service *serviceCommand) SetHost(host defaults.HostValue) {
-
+	service.host = host
 }
 func (service *serviceCommand) SetSession(session module.Session) {
-
+	service.session = session
 }
 func (service *serviceCommand) SetConfig(config defaults.ConfigPattern) {
-
+	service.config = config
 }
 
 func (service serviceCommand) String() string {
@@ -94,6 +141,7 @@ func (service *serviceCommand) Convert(cmdValues interface{}) (threads.StepRunna
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
+			Logger.Debug(fmt.Sprintf("service.%s -> type: %s", strings.ToLower(key), elemValType))
 			if strings.ToLower(key) == "name" {
 				if elemValType == "string" {
 					name = fmt.Sprintf("%v", value)
@@ -141,10 +189,13 @@ func (service *serviceCommand) Convert(cmdValues interface{}) (threads.StepRunna
 		return nil, superError
 	}
 	return &serviceCommand{
-		Name:     name,
-		State:    state,
-		WithVars: withVars,
-		WithList: withList,
+		Name:         name,
+		State:        state,
+		WithVars:     withVars,
+		WithList:     withList,
+		start:        time.Now(),
+		lastDuration: 0 * time.Second,
+		uuid:         module.NewSessionId(),
 	}, nil
 }
 

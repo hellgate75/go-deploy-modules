@@ -6,6 +6,7 @@ import (
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
+	"github.com/hellgate75/go-deploy/net/generic"
 	"github.com/hellgate75/go-deploy/types/defaults"
 	"github.com/hellgate75/go-deploy/types/module"
 	"github.com/hellgate75/go-deploy/types/threads"
@@ -23,55 +24,104 @@ var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 * Shell command structure
  */
 type shellCommand struct {
-	Exec      string
-	RunAs     string
-	AsRoot    bool
-	WithVars  []string
-	WithList  []string
-	SaveState string
+	Exec         string
+	RunAs        string
+	AsRoot       bool
+	WithVars     []string
+	WithList     []string
+	SaveState    string
+	host         defaults.HostValue
+	session      module.Session
+	config       defaults.ConfigPattern
+	client       generic.NetworkClient
+	start        time.Time
+	lastDuration time.Duration
+	uuid         string
+	started      bool
+	finished     bool
+	paused       bool
+	_running     bool
+}
+
+func (shell *shellCommand) SetClient(client generic.NetworkClient) {
+	shell.client = client
 }
 
 func (shell *shellCommand) Run() error {
-	return nil
+	var err error
+	Logger.Warnf("Shell command not implemented, shell data: %s", shell.String())
+	return err
 }
 func (shell *shellCommand) Stop() error {
+	shell._running = false
 	return nil
 }
 func (shell *shellCommand) Kill() error {
 	return nil
 }
 func (shell *shellCommand) Pause() error {
-	return nil
+	if !shell.paused && shell.started {
+		shell.paused = true
+		shell.started = false
+		shell.lastDuration += time.Now().Sub(shell.start)
+		return nil
+	}
+	return errors.New("Process not running or already paused")
 }
 func (shell *shellCommand) Resume() error {
-	return nil
+	if shell.paused && !shell.started {
+		shell.paused = false
+		shell.started = true
+		shell.start = time.Now()
+	}
+	return errors.New("Process running or not paused")
 }
 func (shell *shellCommand) IsRunning() bool {
-	return false
+	return shell.started
 }
 func (shell *shellCommand) IsPaused() bool {
-	return false
+	return shell.paused
 }
 func (shell *shellCommand) IsComplete() bool {
-	return false
+	return !shell.started && !shell.paused && shell.finished
 }
 func (shell *shellCommand) UUID() string {
-	return ""
+	return shell.uuid
 }
+func (shell *shellCommand) Equals(r threads.StepRunnable) bool {
+	if r != nil {
+		return shell.uuid == r.UUID()
+	}
+	return false
+}
+
 func (shell *shellCommand) UpTime() time.Duration {
-	return time.Now().Sub(time.Now())
+	return time.Now().Sub(shell.start) + shell.lastDuration
 }
 func (shell *shellCommand) Clone() threads.StepRunnable {
-	return nil
+	return &shellCommand{
+		Exec:         shell.Exec,
+		RunAs:        shell.RunAs,
+		AsRoot:       shell.AsRoot,
+		SaveState:    shell.SaveState,
+		WithVars:     shell.WithVars,
+		WithList:     shell.WithList,
+		host:         shell.host,
+		session:      shell.session,
+		config:       shell.config,
+		start:        time.Now(),
+		lastDuration: 0 * time.Second,
+		uuid:         module.NewSessionId(),
+	}
 }
 func (shell *shellCommand) SetHost(host defaults.HostValue) {
-
+	shell.host = host
 }
 func (shell *shellCommand) SetSession(session module.Session) {
-
+	shell.session = session
 }
 func (shell *shellCommand) SetConfig(config defaults.ConfigPattern) {
-
+	shell.config = config
 }
 
 func (shell shellCommand) String() string {
@@ -100,7 +150,7 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable,
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
-			Logger.Info(fmt.Sprintf("shell.%s -> type: %s", strings.ToLower(key), elemValType))
+			Logger.Debug(fmt.Sprintf("shell.%s -> type: %s", strings.ToLower(key), elemValType))
 			if strings.ToLower(key) == "exec" {
 				if elemValType == "string" {
 					exec = fmt.Sprintf("%v", value)
@@ -113,7 +163,7 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable,
 				if elemValType == "string" {
 					asVar = fmt.Sprintf("%v", value)
 				} else {
-					return nil, errors.New("Unable to parse command: shell.asVar, with aguments of type " + elemValType + ", expected type string")
+					return nil, errors.New("Unable to parse command: shell.saveState, with aguments of type " + elemValType + ", expected type string")
 				}
 			} else if strings.ToLower(key) == "runas" {
 				if elemValType == "string" {
@@ -176,11 +226,14 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable,
 		return nil, superError
 	}
 	return &shellCommand{
-		Exec:      exec,
-		RunAs:     runAs,
-		AsRoot:    asRoot,
-		WithVars:  withVars,
-		SaveState: asVar,
+		Exec:         exec,
+		RunAs:        runAs,
+		AsRoot:       asRoot,
+		WithVars:     withVars,
+		SaveState:    asVar,
+		start:        time.Now(),
+		lastDuration: 0 * time.Second,
+		uuid:         module.NewSessionId(),
 	}, nil
 }
 

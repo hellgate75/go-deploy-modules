@@ -5,3 +5,4 @@
 **/*.so
 **/.externalToolBuilders
 **/.settings
+.idea

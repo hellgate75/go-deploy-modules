@@ -62,7 +62,7 @@ func (shell *shellCommand) Run() error {
 		shell.started = false
 	}()
 	//	Logger.Warnf("Shell command not implemented, shell data: %s", shell.String())
-	Logger.Warnf("Executing command: %s", shell.Exec)
+	Logger.Debugf("Executing command: %s", shell.Exec)
 	Logger.Debugf("Host labelled:  %s", shell.host.Name)
 	buffer := bytes.NewBuffer([]byte{})
 	var command string = shell.Exec

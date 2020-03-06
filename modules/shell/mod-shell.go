@@ -49,6 +49,8 @@ func (shell *shellCommand) SetClient(client generic.NetworkClient) {
 }
 
 func (shell *shellCommand) Run() error {
+	shell.started = true
+	shell.start = time.Now()
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -60,8 +62,8 @@ func (shell *shellCommand) Run() error {
 		shell.started = false
 	}()
 	//	Logger.Warnf("Shell command not implemented, shell data: %s", shell.String())
-	Logger.Infof("Executing command: %s", shell.Exec)
-	Logger.Infof("Host labelled:  %s", shell.host.Name)
+	Logger.Warnf("Executing command: %s", shell.Exec)
+	Logger.Debugf("Host labelled:  %s", shell.host.Name)
 	buffer := bytes.NewBuffer([]byte{})
 	var command string = shell.Exec
 	if shell.WithVars != nil && len(shell.WithVars) > 0 {
@@ -98,6 +100,8 @@ func (shell *shellCommand) Run() error {
 	if shell.SaveState != "" {
 		shell.session.SetVar(shell.SaveState, buffer.String())
 	}
+	shell.started = false
+	shell.finished = true
 	return err
 }
 func (shell *shellCommand) Stop() error {

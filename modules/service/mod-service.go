@@ -45,6 +45,8 @@ func (service *serviceCommand) SetClient(client generic.NetworkClient) {
 }
 
 func (service *serviceCommand) Run() error {
+	service.started = true
+	service.start = time.Now()
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -56,6 +58,8 @@ func (service *serviceCommand) Run() error {
 		service.started = false
 	}()
 	Logger.Warnf("Service command not implemented, service data: %s", service.String())
+	service.started = false
+	service.finished = true
 	return err
 }
 func (service *serviceCommand) Stop() error {

@@ -47,6 +47,8 @@ func (copyCmd *copyCommand) SetClient(client generic.NetworkClient) {
 }
 
 func (copyCmd *copyCommand) Run() error {
+	copyCmd.started = true
+	copyCmd.start = time.Now()
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
@@ -58,6 +60,8 @@ func (copyCmd *copyCommand) Run() error {
 		copyCmd.started = false
 	}()
 	Logger.Warnf("Copy Command command not implemented, copy command data: %s", copyCmd.String())
+	copyCmd.started = false
+	copyCmd.finished = true
 	return err
 }
 func (copyCmd *copyCommand) Stop() error {

@@ -98,7 +98,10 @@ func (shell *shellCommand) Run() error {
 	}
 
 	if shell.SaveState != "" {
-		shell.session.SetVar(shell.SaveState, buffer.String())
+		done := shell.session.SetVar(shell.SaveState, strings.TrimSpace(buffer.String()))
+		if ! done {
+			Logger.Warnf("Unable to save state: %s", shell.SaveState)
+		}
 	}
 	shell.started = false
 	shell.finished = true

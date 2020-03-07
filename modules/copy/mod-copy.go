@@ -3,7 +3,7 @@ package copy
 import (
 	"errors"
 	"fmt"
-	//	internal "github.com/hellgate75/go-deploy-modules/modules"
+	"os"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
 	"github.com/hellgate75/go-deploy/net/generic"
@@ -26,6 +26,7 @@ var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 type copyCommand struct {
 	SourceDir      string
 	DestinationDir string
+	FilePerm     	os.FileMode
 	CreateDest     bool
 	WithVars       []string
 	WithList       []string
@@ -59,11 +60,84 @@ func (copyCmd *copyCommand) Run() error {
 		copyCmd.paused = false
 		copyCmd.started = false
 	}()
-	Logger.Warnf("Copy Command command not implemented, copy command data: %s", copyCmd.String())
+	//Logger.Warnf("Copy Command command not implemented, copy command data: %s", copyCmd.String())
+	var sourceDir string = copyCmd.SourceDir
+	var destinationDir string = copyCmd.DestinationDir
+	var createDestination bool = copyCmd.CreateDest
+
+	transfer := copyCmd.client.FileTranfer()
+
+	if copyCmd.WithList != nil && len(copyCmd.WithList) > 0 {
+		for _, listItem := range copyCmd.WithList {
+			if strings.Index(sourceDir, "{{ item }}") < 0 {
+				if strings.Index(destinationDir, "{{ item }}") < 0 {
+					err = errors.New("Neither Source nor Destination folder contain scalable variable '{{ item }}'")
+					break
+				}
+			}
+			sourceDirCopy := strings.ReplaceAll(sourceDir, "{{ item }}", listItem)
+			destinationDirCopy := strings.ReplaceAll(destinationDir, "{{ item }}", listItem)
+			if copyCmd.WithVars != nil && len(copyCmd.WithVars) > 0 {
+				for _, varKey := range copyCmd.WithVars {
+					varValue, varValueErr := copyCmd.session.GetVar(varKey)
+					if varValueErr == nil {
+						sourceDirCopy = strings.ReplaceAll(sourceDirCopy, "{{ "+varKey+" }}", varValue)
+						destinationDirCopy = strings.ReplaceAll(destinationDirCopy, "{{ "+varKey+" }}", varValue)
+					}
+					Logger.Debugf("List Item: %s", listItem)
+					Logger.Debugf("Source Folder: %s", sourceDirCopy)
+					Logger.Debugf("Destination Folder: %s", destinationDirCopy)
+					Logger.Debugf("Create Destination Folder: %v", createDestination)
+					errX := copySourceToDest(copyCmd, transfer, sourceDirCopy, destinationDirCopy, createDestination)
+					if errX != nil {
+						err = errX
+						break
+					}
+				}
+			}
+		}
+	} else {
+		if copyCmd.WithVars != nil && len(copyCmd.WithVars) > 0 {
+			for _, varKey := range copyCmd.WithVars {
+				varValue, varValueErr := copyCmd.session.GetVar(varKey)
+				if varValueErr == nil {
+					sourceDir = strings.ReplaceAll(sourceDir, "{{ "+varKey+" }}", varValue)
+					destinationDir = strings.ReplaceAll(destinationDir, "{{ "+varKey+" }}", varValue)
+				}
+			}
+		}
+		Logger.Debugf("Source Folder: %s", sourceDir)
+		Logger.Debugf("Destination Folder: %s", destinationDir)
+		Logger.Debugf("Create Destination Folder: %v", createDestination)
+		err = copySourceToDest(copyCmd, transfer, sourceDir, destinationDir, createDestination)
+
+	}
 	copyCmd.started = false
 	copyCmd.finished = true
 	return err
 }
+
+func copySourceToDest(copyCmd *copyCommand, transfer generic.FileTransfer, src string, dest string, create bool) error {
+	fi, err := os.Stat(src)
+	if err != nil {
+		return errors.New("Source file/folder doesn't exists...")
+	}
+	if fi.IsDir() {
+		//Folder
+		err = transfer.TransferFolderAs(src, dest, copyCmd.FilePerm)
+		if err != nil {
+			return err
+		}
+	} else {
+		//File
+		err = transfer.TransferFileAs(src, dest, copyCmd.FilePerm)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (copyCmd *copyCommand) Stop() error {
 	copyCmd._running = false
 	return nil
@@ -113,6 +187,7 @@ func (copyCmd *copyCommand) Clone() threads.StepRunnable {
 	return &copyCommand{
 		SourceDir:      copyCmd.SourceDir,
 		DestinationDir: copyCmd.DestinationDir,
+		FilePerm:     copyCmd.FilePerm,
 		CreateDest:     copyCmd.CreateDest,
 		WithVars:       copyCmd.WithVars,
 		WithList:       copyCmd.WithList,
@@ -137,7 +212,7 @@ func (copyCmd *copyCommand) SetConfig(config defaults.ConfigPattern) {
 }
 
 func (copyCmd copyCommand) String() string {
-	return fmt.Sprintf("ServiceCommand {SourceDir: %v, DestDir: %v, CreateDest: %v, WithVars: [%v], WithList: [%v]}", copyCmd.SourceDir, copyCmd.DestinationDir, strconv.FormatBool(copyCmd.CreateDest), copyCmd.WithVars, copyCmd.WithList)
+	return fmt.Sprintf("ServiceCommand {SourceDir: %v, DestDir: %v, CreateDest: %v, FilePerm: %s, WithVars: [%v], WithList: [%v]}", copyCmd.SourceDir, copyCmd.DestinationDir, copyCmd.FilePerm.String(), strconv.FormatBool(copyCmd.CreateDest), copyCmd.WithVars, copyCmd.WithList)
 }
 
 func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable, error) {
@@ -156,6 +231,7 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 	var withVars []string = make([]string, 0)
 	var withList []string = make([]string, 0)
 	var createDest bool = false
+	var filePerm os.FileMode = 0664
 	var valType string = fmt.Sprintf("%T", cmdValues)
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
@@ -172,6 +248,16 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 					destDir = fmt.Sprintf("%v", value)
 				} else {
 					return nil, errors.New("Unable to parse command: copy.destDir, with aguments of type " + elemValType + ", expected type string")
+				}
+			} else if strings.ToLower(key) == "perm" {
+				if elemValType == "string" {
+					permEx := fmt.Sprintf("%v", value)
+					perm, err4b := strconv.Atoi(permEx)
+					if err4b == nil {
+						filePerm = os.FileMode(perm)
+					}
+				} else {
+					return nil, errors.New("Unable to parse command: copy.perm, with aguments of type " + elemValType + ", expected type string")
 				}
 			} else if strings.ToLower(key) == "createifmissing" {
 				if elemValType == "string" {
@@ -226,6 +312,7 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 		SourceDir:      sourceDir,
 		DestinationDir: destDir,
 		CreateDest:     createDest,
+		FilePerm: 		filePerm,
 		WithVars:       withVars,
 		WithList:       withList,
 		start:          time.Now(),

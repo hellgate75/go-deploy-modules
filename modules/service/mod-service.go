@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"fmt"
-	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"github.com/hellgate75/go-deploy/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
 	"github.com/hellgate75/go-deploy/net/generic"
@@ -57,6 +56,7 @@ func (service *serviceCommand) Run() error {
 		service.paused = false
 		service.started = false
 	}()
+	//TODO MOD-SERVICE noy implemented yet
 	Logger.Warnf("Service command not implemented, service data: %s", service.String())
 	service.started = false
 	service.finished = true

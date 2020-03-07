@@ -61,23 +61,24 @@ func (shell *shellCommand) Run() error {
 		shell.paused = false
 		shell.started = false
 	}()
-	//	Logger.Warnf("Shell command not implemented, shell data: %s", shell.String())
 	Logger.Debugf("Executing command: %s", shell.Exec)
 	Logger.Debugf("Host labelled:  %s", shell.host.Name)
 	buffer := bytes.NewBuffer([]byte{})
 	var command string = shell.Exec
-	if shell.WithVars != nil && len(shell.WithVars) > 0 {
-		for _, varKey := range shell.WithVars {
-			varValue, varValueErr := shell.session.GetVar(varKey)
-			if varValueErr == nil {
-				command = strings.ReplaceAll(command, "{{ "+varKey+" }}", varValue)
-			}
-		}
-	}
 	if shell.WithList != nil && len(shell.WithList) > 0 && strings.Index(command, "{{ item }}") >= 0 {
-		var commandCopy string = command
 		for _, listItem := range shell.WithList {
-			strings.ReplaceAll(commandCopy, "{{ item }}", listItem)
+			if strings.Index(command, "{{ item }}") < 0 {
+				return errors.New("Command doesn't contain scalable variable '{{ item }}'")
+			}
+			commandCopy := strings.ReplaceAll(command, "{{ item }}", listItem)
+			if shell.WithVars != nil && len(shell.WithVars) > 0 {
+				for _, varKey := range shell.WithVars {
+					varValue, varValueErr := shell.session.GetVar(varKey)
+					if varValueErr == nil {
+						commandCopy = strings.ReplaceAll(commandCopy, "{{ "+varKey+" }}", varValue)
+					}
+				}
+			}
 
 			script := shell.client.Script(commandCopy)
 			//	script.SetStdio(buffer, buffer)
@@ -88,6 +89,14 @@ func (shell *shellCommand) Run() error {
 			buffer.Write(bytesArr)
 		}
 	} else {
+		if shell.WithVars != nil && len(shell.WithVars) > 0 {
+			for _, varKey := range shell.WithVars {
+				varValue, varValueErr := shell.session.GetVar(varKey)
+				if varValueErr == nil {
+					command = strings.ReplaceAll(command, "{{ "+varKey+" }}", varValue)
+				}
+			}
+		}
 		script := shell.client.Script(command)
 		//	script.SetStdio(buffer, buffer)
 		bytesArr, errCmd := script.ExecuteWithFullOutput()
@@ -198,6 +207,7 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable,
 	var valType string = fmt.Sprintf("%T", cmdValues)
 	var exec string = ""
 	var runAs string = ""
+	//TODO As Root noy implemented yet
 	var asRoot bool = false
 	var withVars []string = make([]string, 0)
 	var withList []string = make([]string, 0)

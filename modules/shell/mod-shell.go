@@ -17,8 +17,6 @@ import (
 	"time"
 )
 
-var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbosity()))
-
 var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 
 /*
@@ -42,6 +40,11 @@ type shellCommand struct {
 	finished     bool
 	paused       bool
 	_running     bool
+	_logger		log.Logger
+}
+
+func (shell *shellCommand) SetLogger(l log.Logger) {
+	shell._logger = l
 }
 
 func (shell *shellCommand) SetClient(client generic.NetworkClient) {
@@ -61,8 +64,8 @@ func (shell *shellCommand) Run() error {
 		shell.paused = false
 		shell.started = false
 	}()
-	Logger.Debugf("Executing command: %s", shell.Exec)
-	Logger.Debugf("Host labelled:  %s", shell.host.Name)
+	shell._logger.Debugf("Executing command: %s", shell.Exec)
+	shell._logger.Debugf("Host labelled:  %s", shell.host.Name)
 	buffer := bytes.NewBuffer([]byte{})
 	var command string = shell.Exec
 	if shell.WithList != nil && len(shell.WithList) > 0 && strings.Index(command, "{{ item }}") >= 0 {
@@ -109,7 +112,7 @@ func (shell *shellCommand) Run() error {
 	if shell.SaveState != "" {
 		done := shell.session.SetVar(shell.SaveState, strings.TrimSpace(buffer.String()))
 		if ! done {
-			Logger.Warnf("Unable to save state: %s", shell.SaveState)
+			shell._logger.Warnf("Unable to save state: %s", shell.SaveState)
 		}
 	}
 	shell.started = false
@@ -215,7 +218,7 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable,
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
-			Logger.Debug(fmt.Sprintf("shell.%s -> type: %s", strings.ToLower(key), elemValType))
+			shell._logger.Debug(fmt.Sprintf("shell.%s -> type: %s", strings.ToLower(key), elemValType))
 			if strings.ToLower(key) == "exec" {
 				if elemValType == "string" {
 					exec = fmt.Sprintf("%v", value)

@@ -14,8 +14,6 @@ import (
 	"time"
 )
 
-var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbosity()))
-
 var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 
 /*
@@ -37,6 +35,11 @@ type serviceCommand struct {
 	finished     bool
 	paused       bool
 	_running     bool
+	_logger		log.Logger
+}
+
+func (service *serviceCommand) SetLogger(l log.Logger) {
+	service._logger = l
 }
 
 func (service *serviceCommand) SetClient(client generic.NetworkClient) {
@@ -57,7 +60,7 @@ func (service *serviceCommand) Run() error {
 		service.started = false
 	}()
 	//TODO MOD-SERVICE noy implemented yet
-	Logger.Warnf("Service command not implemented, service data: %s", service.String())
+	service._logger.Warnf("Service command not implemented, service data: %s", service.String())
 	service.started = false
 	service.finished = true
 	return err
@@ -154,7 +157,7 @@ func (service *serviceCommand) Convert(cmdValues interface{}) (threads.StepRunna
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
-			Logger.Debug(fmt.Sprintf("service.%s -> type: %s", strings.ToLower(key), elemValType))
+			service._logger.Debug(fmt.Sprintf("service.%s -> type: %s", strings.ToLower(key), elemValType))
 			if strings.ToLower(key) == "name" {
 				if elemValType == "string" {
 					name = fmt.Sprintf("%v", value)

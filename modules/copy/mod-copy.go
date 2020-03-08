@@ -16,8 +16,6 @@ import (
 	"time"
 )
 
-var Logger log.Logger = log.NewLogger(log.VerbosityLevelFromString(meta.GetVerbosity()))
-
 var ERROR_TYPE reflect.Type = reflect.TypeOf(errors.New(""))
 
 /*
@@ -41,6 +39,12 @@ type copyCommand struct {
 	finished       bool
 	paused         bool
 	_running       bool
+	_logger		log.Logger
+}
+
+func (copyCmd *copyCommand) SetLogger(l log.Logger) {
+	copyCmd._logger = l
+
 }
 
 func (copyCmd *copyCommand) SetClient(client generic.NetworkClient) {
@@ -84,10 +88,10 @@ func (copyCmd *copyCommand) Run() error {
 						sourceDirCopy = strings.ReplaceAll(sourceDirCopy, "{{ "+varKey+" }}", varValue)
 						destinationDirCopy = strings.ReplaceAll(destinationDirCopy, "{{ "+varKey+" }}", varValue)
 					}
-					Logger.Debugf("List Item: %s", listItem)
-					Logger.Debugf("Source Folder: %s", sourceDirCopy)
-					Logger.Debugf("Destination Folder: %s", destinationDirCopy)
-					Logger.Debugf("Create Destination Folder: %v", createDestination)
+					copyCmd._logger.Debugf("List Item: %s", listItem)
+					copyCmd._logger.Debugf("Source Folder: %s", sourceDirCopy)
+					copyCmd._logger.Debugf("Destination Folder: %s", destinationDirCopy)
+					copyCmd._logger.Debugf("Create Destination Folder: %v", createDestination)
 					errX := copySourceToDest(copyCmd, transfer, sourceDirCopy, destinationDirCopy, createDestination)
 					if errX != nil {
 						err = errX
@@ -106,9 +110,9 @@ func (copyCmd *copyCommand) Run() error {
 				}
 			}
 		}
-		Logger.Debugf("Source Folder: %s", sourceDir)
-		Logger.Debugf("Destination Folder: %s", destinationDir)
-		Logger.Debugf("Create Destination Folder: %v", createDestination)
+		copyCmd._logger.Debugf("Source Folder: %s", sourceDir)
+		copyCmd._logger.Debugf("Destination Folder: %s", destinationDir)
+		copyCmd._logger.Debugf("Create Destination Folder: %v", createDestination)
 		err = copySourceToDest(copyCmd, transfer, sourceDir, destinationDir, createDestination)
 
 	}
@@ -236,7 +240,7 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
-			Logger.Debug(fmt.Sprintf("copy.%s -> type: %s", strings.ToLower(key), elemValType))
+			copyCmd._logger.Debug(fmt.Sprintf("copy.%s -> type: %s", strings.ToLower(key), elemValType))
 			if strings.ToLower(key) == "srcdir" {
 				if elemValType == "string" {
 					sourceDir = fmt.Sprintf("%v", value)

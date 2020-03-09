@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"github.com/gookit/color"
 	"github.com/hellgate75/go-tcp-common/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
 	"github.com/hellgate75/go-deploy/net/generic"
@@ -60,7 +61,11 @@ func (service *serviceCommand) Run() error {
 		service.started = false
 	}()
 	//TODO MOD-SERVICE noy implemented yet
-	service._logger.Warnf("Service command not implemented, service data: %s", service.String())
+	if service._logger != nil {
+		service._logger.Warnf("Service command not implemented, service data: %s", service.String())
+	} else {
+		color.LightYellow.Printf("Service command not implemented, service data: %s\n", service.String())
+	}
 	service.started = false
 	service.finished = true
 	return err
@@ -119,9 +124,14 @@ func (service *serviceCommand) Clone() threads.StepRunnable {
 		host:         service.host,
 		session:      service.session,
 		config:       service.config,
+		client:       service.client,
 		start:        time.Now(),
 		lastDuration: 0 * time.Second,
 		uuid:         module.NewSessionId(),
+		started:      false,
+		finished:     false,
+		paused:       false,
+		_running:     false,
 		_logger:      service._logger,
 	}
 }
@@ -158,7 +168,11 @@ func (service *serviceCommand) Convert(cmdValues interface{}) (threads.StepRunna
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
-			service._logger.Debug(fmt.Sprintf("service.%s -> type: %s", strings.ToLower(key), elemValType))
+			if service._logger != nil {
+				service._logger.Debugf("service.%s -> type: %s", strings.ToLower(key), elemValType)
+			} else {
+				color.LightYellow.Printf("service.%s -> type: %s\n", strings.ToLower(key), elemValType)
+			}
 			if strings.ToLower(key) == "name" {
 				if elemValType == "string" {
 					name = fmt.Sprintf("%v", value)
@@ -205,15 +219,30 @@ func (service *serviceCommand) Convert(cmdValues interface{}) (threads.StepRunna
 	if superError != nil {
 		return nil, superError
 	}
-	return &serviceCommand{
+	runnable := &serviceCommand{
 		Name:         name,
 		State:        state,
 		WithVars:     withVars,
 		WithList:     withList,
+		host:         defaults.HostValue{},
+		session:      service.session,
+		config:       defaults.ConfigPattern{},
+		client:       service.client,
 		start:        time.Now(),
 		lastDuration: 0 * time.Second,
 		uuid:         module.NewSessionId(),
-	}, nil
+		started:      false,
+		finished:     false,
+		paused:       false,
+		_running:     false,
+		_logger:      service._logger,
+	}
+	if service._logger != nil {
+		service._logger.Debugf("Service Command Ruunable: %s", runnable.String())
+	} else {
+		color.LightYellow.Printf("Service Command Ruunable: %s\n", runnable.String())
+	}
+	return runnable, nil
 }
 
 var Converter meta.Converter = &serviceCommand{}

@@ -3,6 +3,8 @@ package shell
 import (
 	"errors"
 	"fmt"
+	"github.com/gookit/color"
+	
 	//	internal "github.com/hellgate75/go-deploy-modules/modules"
 	"bytes"
 	"github.com/hellgate75/go-tcp-common/log"
@@ -64,8 +66,13 @@ func (shell *shellCommand) Run() error {
 		shell.paused = false
 		shell.started = false
 	}()
-	shell._logger.Debugf("Executing command: %s", shell.Exec)
-	shell._logger.Debugf("Host labelled:  %s", shell.host.Name)
+	if shell._logger != nil {
+		shell._logger.Debugf("Executing command: %s", shell.Exec)
+		shell._logger.Debugf("Host labelled:  %s", shell.host.Name)
+	} else {
+		color.LightYellow.Printf("Executing command: %s\n", shell.Exec)
+		color.LightYellow.Printf("Host labelled:  %s\n", shell.host.Name)
+	}
 	buffer := bytes.NewBuffer([]byte{})
 	var command string = shell.Exec
 	if shell.WithList != nil && len(shell.WithList) > 0 && strings.Index(command, "{{ item }}") >= 0 {
@@ -112,7 +119,11 @@ func (shell *shellCommand) Run() error {
 	if shell.SaveState != "" {
 		done := shell.session.SetVar(shell.SaveState, strings.TrimSpace(buffer.String()))
 		if ! done {
-			shell._logger.Warnf("Unable to save state: %s", shell.SaveState)
+			if shell._logger != nil {
+				shell._logger.Warnf("Unable to save state: %s", shell.SaveState)
+			} else {
+				color.LightYellow.Printf("Unable to save state: %s\n", shell.SaveState)
+			}
 		}
 	}
 	shell.started = false
@@ -170,15 +181,20 @@ func (shell *shellCommand) Clone() threads.StepRunnable {
 		Exec:         shell.Exec,
 		RunAs:        shell.RunAs,
 		AsRoot:       shell.AsRoot,
-		SaveState:    shell.SaveState,
 		WithVars:     shell.WithVars,
 		WithList:     shell.WithList,
+		SaveState:    shell.SaveState,
 		host:         shell.host,
 		session:      shell.session,
 		config:       shell.config,
+		client:       shell.client,
 		start:        time.Now(),
 		lastDuration: 0 * time.Second,
 		uuid:         module.NewSessionId(),
+		started:      false,
+		finished:     false,
+		paused:       false,
+		_running:     false,
 		_logger:      shell._logger,
 	}
 }
@@ -219,7 +235,11 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable,
 	if len(valType) > 3 && "map" == valType[0:3] {
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
-			shell._logger.Debug(fmt.Sprintf("shell.%s -> type: %s", strings.ToLower(key), elemValType))
+			if shell._logger != nil {
+				shell._logger.Debugf("shell.%s -> type: %s", strings.ToLower(key), elemValType)
+			} else {
+				color.LightYellow.Printf(fmt.Sprintf("shell.%s -> type: %s\n", strings.ToLower(key), elemValType))
+			}
 			if strings.ToLower(key) == "exec" {
 				if elemValType == "string" {
 					exec = fmt.Sprintf("%v", value)
@@ -294,16 +314,32 @@ func (shell *shellCommand) Convert(cmdValues interface{}) (threads.StepRunnable,
 	if superError != nil {
 		return nil, superError
 	}
-	return &shellCommand{
+	runnable := &shellCommand{
 		Exec:         exec,
 		RunAs:        runAs,
 		AsRoot:       asRoot,
 		WithVars:     withVars,
+		WithList:     nil,
 		SaveState:    asVar,
+		host:         defaults.HostValue{},
+		session:      shell.session,
+		config:       defaults.ConfigPattern{},
+		client:       shell.client,
 		start:        time.Now(),
 		lastDuration: 0 * time.Second,
 		uuid:         module.NewSessionId(),
-	}, nil
+		started:      false,
+		finished:     false,
+		paused:       false,
+		_running:     false,
+		_logger:      shell._logger,
+	}
+	if shell._logger != nil {
+		shell._logger.Debugf("Shell Command Ruunable: %s", runnable.String())
+	} else {
+		color.LightYellow.Printf("Shell Command Ruunable: %s\n", runnable.String())
+	}
+	return runnable, nil
 }
 
 var Converter meta.Converter = &shellCommand{}

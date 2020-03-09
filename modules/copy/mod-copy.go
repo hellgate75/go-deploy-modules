@@ -3,6 +3,7 @@ package copy
 import (
 	"errors"
 	"fmt"
+	"github.com/gookit/color"
 	"os"
 	"github.com/hellgate75/go-tcp-common/log"
 	"github.com/hellgate75/go-deploy/modules/meta"
@@ -88,10 +89,18 @@ func (copyCmd *copyCommand) Run() error {
 						sourceDirCopy = strings.ReplaceAll(sourceDirCopy, "{{ "+varKey+" }}", varValue)
 						destinationDirCopy = strings.ReplaceAll(destinationDirCopy, "{{ "+varKey+" }}", varValue)
 					}
-					copyCmd._logger.Debugf("List Item: %s", listItem)
-					copyCmd._logger.Debugf("Source Folder: %s", sourceDirCopy)
-					copyCmd._logger.Debugf("Destination Folder: %s", destinationDirCopy)
-					copyCmd._logger.Debugf("Create Destination Folder: %v", createDestination)
+					if copyCmd._logger != nil {
+						copyCmd._logger.Debugf("List Item: %s", listItem)
+						copyCmd._logger.Debugf("Source Folder: %s", sourceDirCopy)
+						copyCmd._logger.Debugf("Destination Folder: %s", destinationDirCopy)
+						copyCmd._logger.Debugf("Create Destination Folder: %v", createDestination)
+					} else {
+						color.LightYellow.Printf("List Item: %s\n", listItem)
+						color.LightYellow.Printf("Source Folder: %s\n", sourceDirCopy)
+						color.LightYellow.Printf("Destination Folder: %s\n", destinationDirCopy)
+						color.LightYellow.Printf("Create Destination Folder: %v\n", createDestination)
+					}
+					
 					errX := copySourceToDest(copyCmd, transfer, sourceDirCopy, destinationDirCopy, createDestination)
 					if errX != nil {
 						err = errX
@@ -110,9 +119,15 @@ func (copyCmd *copyCommand) Run() error {
 				}
 			}
 		}
-		copyCmd._logger.Debugf("Source Folder: %s", sourceDir)
-		copyCmd._logger.Debugf("Destination Folder: %s", destinationDir)
-		copyCmd._logger.Debugf("Create Destination Folder: %v", createDestination)
+		if copyCmd._logger != nil {
+			copyCmd._logger.Debugf("Source Folder: %s", sourceDir)
+			copyCmd._logger.Debugf("Destination Folder: %s", destinationDir)
+			copyCmd._logger.Debugf("Create Destination Folder: %v", createDestination)
+		} else {
+			color.LightYellow.Printf("Source Folder: %s\n", sourceDir)
+			color.LightYellow.Printf("Destination Folder: %s\n", destinationDir)
+			color.LightYellow.Printf("Create Destination Folder: %v\n", createDestination)
+		}
 		err = copySourceToDest(copyCmd, transfer, sourceDir, destinationDir, createDestination)
 
 	}
@@ -191,16 +206,21 @@ func (copyCmd *copyCommand) Clone() threads.StepRunnable {
 	return &copyCommand{
 		SourceDir:      copyCmd.SourceDir,
 		DestinationDir: copyCmd.DestinationDir,
-		FilePerm:     copyCmd.FilePerm,
+		FilePerm:       copyCmd.FilePerm,
 		CreateDest:     copyCmd.CreateDest,
 		WithVars:       copyCmd.WithVars,
 		WithList:       copyCmd.WithList,
 		host:           copyCmd.host,
 		session:        copyCmd.session,
 		config:         copyCmd.config,
+		client:         copyCmd.client,
 		start:          time.Now(),
 		lastDuration:   0 * time.Second,
 		uuid:           module.NewSessionId(),
+		started:        false,
+		finished:       false,
+		paused:         false,
+		_running:       false,
 		_logger:        copyCmd._logger,
 	}
 }
@@ -313,17 +333,32 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 	if superError != nil {
 		return nil, superError
 	}
-	return &copyCommand{
+	runnable := &copyCommand{
 		SourceDir:      sourceDir,
 		DestinationDir: destDir,
+		FilePerm:       filePerm,
 		CreateDest:     createDest,
-		FilePerm: 		filePerm,
 		WithVars:       withVars,
 		WithList:       withList,
+		host:           defaults.HostValue{},
+		session:        copyCmd.session,
+		config:         defaults.ConfigPattern{},
+		client:         copyCmd.client,
 		start:          time.Now(),
 		lastDuration:   0 * time.Second,
 		uuid:           module.NewSessionId(),
-	}, nil
+		started:        false,
+		finished:       false,
+		paused:         false,
+		_running:       false,
+		_logger:        copyCmd._logger,
+	}
+	if copyCmd._logger != nil {
+		copyCmd._logger.Debugf("Copy Command Ruunable: %s", runnable.String())
+	} else {
+		color.LightYellow.Printf("Copy Command Ruunable: %s\n", runnable.String())
+	}
+	return runnable, nil
 }
 
 var Converter meta.Converter = &copyCommand{}

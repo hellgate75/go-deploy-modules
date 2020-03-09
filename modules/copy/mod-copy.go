@@ -262,13 +262,13 @@ func (copyCmd *copyCommand) Convert(cmdValues interface{}) (threads.StepRunnable
 		for key, value := range cmdValues.(map[string]interface{}) {
 			var elemValType string = fmt.Sprintf("%T", value)
 			copyCmd._logger.Debug(fmt.Sprintf("copy.%s -> type: %s", strings.ToLower(key), elemValType))
-			if strings.ToLower(key) == "srcdir" {
+			if strings.ToLower(key) == "source" {
 				if elemValType == "string" {
 					sourceDir = fmt.Sprintf("%v", value)
 				} else {
 					return nil, errors.New("Unable to parse command: copy.srcDir, with aguments of type " + elemValType + ", expected type string")
 				}
-			} else if strings.ToLower(key) == "destdir" {
+			} else if strings.ToLower(key) == "destination" {
 				if elemValType == "string" {
 					destDir = fmt.Sprintf("%v", value)
 				} else {

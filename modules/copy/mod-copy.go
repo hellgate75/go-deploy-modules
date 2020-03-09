@@ -201,6 +201,7 @@ func (copyCmd *copyCommand) Clone() threads.StepRunnable {
 		start:          time.Now(),
 		lastDuration:   0 * time.Second,
 		uuid:           module.NewSessionId(),
+		_logger:        copyCmd._logger,
 	}
 }
 func (copyCmd *copyCommand) SetHost(host defaults.HostValue) {

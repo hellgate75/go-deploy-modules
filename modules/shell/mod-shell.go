@@ -179,6 +179,7 @@ func (shell *shellCommand) Clone() threads.StepRunnable {
 		start:        time.Now(),
 		lastDuration: 0 * time.Second,
 		uuid:         module.NewSessionId(),
+		_logger:      shell._logger,
 	}
 }
 func (shell *shellCommand) SetHost(host defaults.HostValue) {

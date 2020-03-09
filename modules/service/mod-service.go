@@ -122,6 +122,7 @@ func (service *serviceCommand) Clone() threads.StepRunnable {
 		start:        time.Now(),
 		lastDuration: 0 * time.Second,
 		uuid:         module.NewSessionId(),
+		_logger:      service._logger,
 	}
 }
 func (service *serviceCommand) SetHost(host defaults.HostValue) {
